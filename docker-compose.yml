@@ -1,0 +1,36 @@
+# NOT TESTED: Docker is not available in the environment where this project was built.
+# Create a .env file next to this file (never commit it):  APP_SECRET_KEY=...  POSTGRES_PASSWORD=...
+# Then: docker compose up --build
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: nematanwar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: nematanwar
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nematanwar"]
+      interval: 5s
+      retries: 10
+    # no ports published: the database is not reachable from outside
+  api:
+    build: ./apps/api
+    environment: &app_env
+      APP_SECRET_KEY: ${APP_SECRET_KEY:?set APP_SECRET_KEY}
+      DATABASE_URL: postgresql://nematanwar:${POSTGRES_PASSWORD}@db:5432/nematanwar
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on: {db: {condition: service_healthy}}
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+  worker:
+    build: ./apps/api
+    environment: *app_env
+    depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
+    command: python -m app.workers.scheduler
+  web:
+    build: ./apps/web
+    ports: ["8080:80"]
+    depends_on: [api]
+volumes:
+  dbdata:

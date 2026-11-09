@@ -1,0 +1,1 @@
+(function(){try{var m=localStorage.getItem("na_theme");var t;if(m==="light"||m==="dark"){t=m}else if(m==="system"){t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}else{t="dark"}document.documentElement.setAttribute("data-theme",t)}catch(e){document.documentElement.setAttribute("data-theme","dark")}})();

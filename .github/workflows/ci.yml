@@ -1,0 +1,46 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r apps/api/requirements-dev.txt
+      - run: pytest
+        working-directory: apps/api
+        env:
+          APP_SECRET_KEY: ci-secret-key-ci-secret-key-0123456789
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci && npm test && npm run build
+        working-directory: apps/web
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: pip install -r apps/api/requirements.txt
+      - run: cd apps/web && npm ci && npx playwright install --with-deps chromium && npm run build
+      - name: run api, fake site and web, then the browser tests
+        working-directory: apps/web
+        env:
+          APP_SECRET_KEY: ci-secret-key-ci-secret-key-0123456789
+          DATABASE_URL: sqlite:////tmp/e2e.db
+          ALLOW_PRIVATE_URLS: "true"
+          E2E_FAKE_WP: "1"
+        run: |
+          (cd ../api && alembic upgrade head && nohup uvicorn app.main:app --port 8000 &)
+          nohup node e2e/fake-wordpress.mjs &
+          nohup npm run preview -- --host 127.0.0.1 &
+          sleep 8
+          npm run e2e
+# Not yet run on GitHub.
